@@ -23,11 +23,10 @@ class _ChatScreenState extends State<ChatScreen> {
   final FocusNode _focusNode = FocusNode();
   final ScrollController _scrollController = ScrollController();
   final CollectionReference _messagesCollection =
-      FirebaseFirestore.instance.collection('messages');
+      FirebaseFirestore.instance.collection('conversations');
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
   String? _currentUserEmail;
-  List<String> _messageQueue = [];
   bool _isSending = false;
   bool _isTyping = false;
 
@@ -54,10 +53,10 @@ class _ChatScreenState extends State<ChatScreen> {
 
   void _sendMessage() async {
     if (_currentUserEmail == null) {
-      print(
-          'User is not logged in'); // Debugging: Check if the user is logged in
+      print('User is not logged in');
       return;
     }
+
     if (_messageController.text.trim().isNotEmpty) {
       String message = _messageController.text.trim();
       final conversationId =
@@ -71,30 +70,26 @@ class _ChatScreenState extends State<ChatScreen> {
         'timestamp': FieldValue.serverTimestamp(),
       };
 
-      print(
-          "Sending message: $messageData"); // Debugging line to ensure correct data
+      print("Sending message: $messageData");
 
       setState(() => _isSending = true);
 
       try {
-        // Log Firestore collection and document path before attempting to add
-        print("Attempting to send message to Firestore collection: 'messages'");
-
         // Attempt to add the message to Firestore
-        await _messagesCollection.add(messageData);
+        await _messagesCollection
+            .doc(conversationId)
+            .collection('messages')
+            .add(messageData);
 
-        print("Message sent successfully.");
+        _messageController.clear(); // Clear the input field
         _scrollToBottom(); // Scroll to the latest message
       } catch (e) {
-        print(
-            "Error sending message: $e"); // Log any error that occurs during Firestore write
+        print("Error sending message: $e");
       } finally {
-        setState(() {
-          _isSending = false;
-        });
+        setState(() => _isSending = false);
       }
     } else {
-      print("Message is empty."); // Log if the message is empty and not sent
+      print("Message is empty.");
     }
   }
 
@@ -119,10 +114,10 @@ class _ChatScreenState extends State<ChatScreen> {
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance
+                  .collection('conversations')
+                  .doc(_getConversationId(
+                      _currentUserEmail ?? '', widget.recipientEmail))
                   .collection('messages')
-                  .where('conversationId',
-                      isEqualTo: _getConversationId(
-                          _currentUserEmail ?? '', widget.recipientEmail))
                   .orderBy('timestamp', descending: false)
                   .snapshots(),
               builder: (context, snapshot) {
